@@ -15,6 +15,11 @@ calm::Device::Device(HWND hwnd) : _hwnd(hwnd)
 
 void calm::Device::present()
 {
+    _ctx->OMSetRenderTargets(1, _rtv.GetAddressOf(), nullptr);
+
+    float_t color[4] = {0.0f, 0.2f, 0.4f, 1.0f};
+    _ctx->ClearRenderTargetView(_rtv.Get(), color);
+
     _swap->Present(1, 0);
 }
 
@@ -91,4 +96,11 @@ void calm::Device::_create_swap_chain()
         std::cout << "Swap Chain created successfully" << '\n';
     else
         std::cout << std::system_category().message(hr) << '\n';
+
+    // Get the swap chain's back buffer
+    ComPtr<ID3D11Texture2D> back;
+    _swap->GetBuffer(0, __uuidof(ID3D11Texture2D), &back);
+
+    // Create a Render Target View for the buffer
+    _device->CreateRenderTargetView(back.Get(), nullptr, &_rtv);
 }

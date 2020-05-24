@@ -7,7 +7,7 @@
 
 int main()
 {
-    calm::Window w(500, 500, "Hello World");
+    calm::Window w(500, 500, "calm engine");
     calm::Device device(w.get_hwnd());
 
     SDL_Event event;
