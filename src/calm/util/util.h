@@ -4,13 +4,13 @@
 
 #pragma once
 
-#include "calmdef.h"
+#include <cstdint>
 
 struct Size2D
 {
-    i32 x;
-    i32 y;
+    int32_t x;
+    int32_t y;
 
-    Size2D(i32 x, i32 y) : x(x), y(y)
+    Size2D(int32_t x, int32_t y) : x(x), y(y)
     {}
 };

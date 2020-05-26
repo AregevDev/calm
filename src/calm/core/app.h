@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include "../util/calmdef.h"
 #include "../util/calmwin.h"
 
 #include <string>
@@ -15,7 +14,7 @@ namespace calm
     class App
     {
     public:
-        App(u32 width, u32 height, std::string_view title);
+        App(uint32_t width, uint32_t height, std::string_view title);
         ~App() = default;
 
         void start();
@@ -27,12 +26,12 @@ namespace calm
         HINSTANCE m_instance;
         HWND m_window;
 
-        u32 m_width;
-        u32 m_height;
+        uint32_t m_width;
+        uint32_t m_height;
         std::string m_title;
 
         bool m_running;
-        f32 m_delta_time;
+        float m_delta_time;
 
         void init_application();
         void handle_message(const MSG& msg);

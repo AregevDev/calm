@@ -6,7 +6,7 @@
 
 #include <iostream>
 
-calm::App::App(u32 width, u32 height, std::string_view title) :
+calm::App::App(uint32_t width, uint32_t height, std::string_view title) :
     m_instance(nullptr),
     m_window(nullptr),
     m_width(width),
@@ -70,8 +70,8 @@ void calm::App::init_application()
         WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
-        m_width,
-        m_height,
+        (uint32_t) m_width,
+        (uint32_t) m_height,
         nullptr,
         nullptr,
         m_instance,
