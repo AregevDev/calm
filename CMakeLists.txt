@@ -7,8 +7,8 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_executable(calm
         src/calm/main.cpp
-        src/calm/core/window.cpp
-        src/calm/core/device.cpp
+
+        src/calm/core/app.cpp
         )
 
 target_link_libraries(calm SDL2-static D3d11)
