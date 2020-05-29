@@ -5,6 +5,10 @@
 #include "triangle_vs.h"
 #include "triangle_ps.h"
 
+#include <ImGui/imgui.h>
+#include <ImGui/imgui_impl_win32.h>
+#include <ImGui/imgui_impl_dx11.h>
+
 #include <array>
 
 // TODO: Significant error handling
@@ -17,7 +21,7 @@ struct VertexPosColor
 
 int main()
 {
-    calm::App app(500, 500, "calm engine");
+    calm::App app(1280, 720, "calm engine");
 
     ComPtr<ID3D11Device> device;
     ComPtr<ID3D11DeviceContext> context;
@@ -109,11 +113,29 @@ int main()
     context->VSSetShader(vs.Get(), nullptr, 0);
     context->PSSetShader(ps.Get(), nullptr, 0);
 
+    // ImGui
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+
+    ImGuiIO& io = ImGui::GetIO();
+    io.Fonts->AddFontFromFileTTF("assets/fonts/Roboto-Regular.ttf", 20.0f);
+
+    ImGui::StyleColorsClassic();
+
+    ImGui_ImplWin32_Init(app.get_hwnd());
+    ImGui_ImplDX11_Init(device.Get(), context.Get());
+
     MSG msg = {};
     while ((GetMessage(&msg, nullptr, 0, 0)) > 0)
     {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
+
+        ImGui_ImplDX11_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        ImGui::NewFrame();
+
+        ImGui::ShowDemoWindow();
 
         float color[4] = {0.0f, 0.2f, 0.4f, 1.0f};
         context->ClearRenderTargetView(rtv.Get(), color);
@@ -122,8 +144,15 @@ int main()
 
         context->Draw(3, 0);
 
+        ImGui::Render();
+        ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+
         swap_chain->Present(1, 0);
     }
+
+    ImGui_ImplDX11_Shutdown();
+    ImGui_ImplWin32_Shutdown();
+    ImGui::DestroyContext();
 
     return msg.wParam;
 }

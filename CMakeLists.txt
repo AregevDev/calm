@@ -15,7 +15,15 @@ add_executable(calm
         src/calm/core/app.cpp
         src/calm/backend/backend.cpp
         src/calm/backend/device.cpp
+
+        external/ImGui/imgui.cpp
+        external/ImGui/imgui_demo.cpp
+        external/ImGui/imgui_draw.cpp
+        external/ImGui/imgui_widgets.cpp
+        external/ImGui/imgui_impl_dx11.cpp
+        external/ImGui/imgui_impl_win32.cpp
         )
 
 target_include_directories(calm PRIVATE ${SHADERS})
-target_link_libraries(calm SDL2-static D3d11 DXGI D3dcompiler )
+target_include_directories(calm PRIVATE external)
+target_link_libraries(calm SDL2-static D3d11 DXGI D3dcompiler)

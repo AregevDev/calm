@@ -4,13 +4,21 @@
 
 #include "app.h"
 
+#include <ImGui/imgui.h>
+
 #include <iostream>
+
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
+    if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wparam, lparam))
+        return true;
+
     switch (msg)
     {
-        case WM_CLOSE:
+
+        case WM_DESTROY:
             PostQuitMessage(0);
             break;
     }
@@ -29,6 +37,12 @@ calm::App::App(uint32_t width, uint32_t height, std::string_view title) :
     m_delta_time(0.0f)
 {
     init_application();
+}
+
+calm::App::~App()
+{
+    DestroyWindow(m_window);
+    UnregisterClass(m_title.c_str(), m_instance);
 }
 
 int32_t calm::App::start()

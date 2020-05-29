@@ -18,7 +18,7 @@ namespace calm
         uint32_t m_height;
 
         App(uint32_t width, uint32_t height, std::string_view title);
-        ~App() = default;
+        ~App();
 
         int32_t start();
 
@@ -29,7 +29,7 @@ namespace calm
         HINSTANCE m_instance;
         HWND m_window;
 
-        std::string m_title;
+        const std::string m_title;
 
         bool m_running;
         float m_delta_time;
