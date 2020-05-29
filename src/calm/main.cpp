@@ -54,12 +54,12 @@ int main()
         &context
     ));
 
-    ComPtr<ID3D11Texture2D> back_buffer;
-    throw_if_failed(swap_chain->GetBuffer(0, __uuidof(ID3D11Texture2D), &back_buffer));
-
     ComPtr<ID3D11RenderTargetView> rtv;
-    throw_if_failed(device->CreateRenderTargetView(back_buffer.Get(), nullptr, rtv.GetAddressOf()));
-    context->OMSetRenderTargets(1, rtv.GetAddressOf(), nullptr);
+    {
+        ComPtr<ID3D11Texture2D> back_buffer;
+        throw_if_failed(swap_chain->GetBuffer(0, __uuidof(ID3D11Texture2D), &back_buffer));
+        throw_if_failed(device->CreateRenderTargetView(back_buffer.Get(), nullptr, rtv.GetAddressOf()));
+    }
 
     std::array<VertexPosColor, 3> vertices = {{
         {XMFLOAT3(-0.5f, -0.5f, 0.0f), XMFLOAT3(1.0f, 0.0f, 1.0f)},
@@ -138,6 +138,7 @@ int main()
         ImGui::ShowDemoWindow();
 
         float color[4] = {0.0f, 0.2f, 0.4f, 1.0f};
+        context->OMSetRenderTargets(1, rtv.GetAddressOf(), nullptr);
         context->ClearRenderTargetView(rtv.Get(), color);
         context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         context->RSSetViewports(1, &vp);
