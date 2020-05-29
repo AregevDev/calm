@@ -17,7 +17,7 @@ namespace calm
         App(uint32_t width, uint32_t height, std::string_view title);
         ~App() = default;
 
-        void start();
+        int32_t start();
 
         HWND get_hwnd();
         HINSTANCE get_instance();
@@ -34,6 +34,5 @@ namespace calm
         float m_delta_time;
 
         void init_application();
-        void handle_message(const MSG& msg);
     };
 }

@@ -6,35 +6,34 @@
 
 #include <iostream>
 
+LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+{
+    switch (msg)
+    {
+        case WM_CLOSE:
+            PostQuitMessage(0);
+            break;
+    }
+
+    return DefWindowProc(hwnd, msg, wparam, lparam);
+}
+
+
 calm::App::App(uint32_t width, uint32_t height, std::string_view title) :
     m_instance(nullptr),
     m_window(nullptr),
     m_width(width),
     m_height(height),
     m_title(title),
-    m_running(false),
+    m_running(true),
     m_delta_time(0.0f)
 {
     init_application();
 }
 
-void calm::App::start()
+int32_t calm::App::start()
 {
-    // Message loop
-    MSG msg = {};
-    while (msg.message != WM_QUIT && m_running)
-    {
-        if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
-        {
-            handle_message(msg);
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-        }
-        else
-        {
-
-        }
-    }
+    return 0;
 }
 
 HWND calm::App::get_hwnd()
@@ -54,9 +53,10 @@ void calm::App::init_application()
 
     WNDCLASSEX win_class = {};
     win_class.cbSize = sizeof(WNDCLASSEX);
-    win_class.style = CS_OWNDC;
-    win_class.lpfnWndProc = DefWindowProc;
+    win_class.style = CS_HREDRAW | CS_VREDRAW;
+    win_class.lpfnWndProc = window_proc;
     win_class.hInstance = m_instance;
+    win_class.hCursor = LoadCursor(nullptr, IDC_WAIT);
     win_class.lpszClassName = m_title.c_str();
 
     if (!RegisterClassEx(&win_class))
@@ -82,12 +82,5 @@ void calm::App::init_application()
         std::cerr << "Failed to create a window: "  << GetLastError() << '\n';
 
     ShowWindow(m_window, SW_SHOW);
-}
-
-void calm::App::handle_message(const MSG& msg)
-{
-    switch (msg.message)
-    {
-
-    }
+    m_running = true;
 }

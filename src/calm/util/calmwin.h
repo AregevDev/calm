@@ -9,7 +9,10 @@
 #include <d3d11.h>
 
 #include <wrl.h>
-#include <dxgi1_6.h>
-#include <d3d11_2.h>
+#include <dxgi.h>
+#include <d3d11.h>
+#include <d3dcompiler.h>
+#include <DirectXMath.h>
 
 using namespace Microsoft::WRL;
+using namespace DirectX;
