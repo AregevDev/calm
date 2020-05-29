@@ -14,6 +14,9 @@ namespace calm
     class App
     {
     public:
+        uint32_t m_width;
+        uint32_t m_height;
+
         App(uint32_t width, uint32_t height, std::string_view title);
         ~App() = default;
 
@@ -26,8 +29,6 @@ namespace calm
         HINSTANCE m_instance;
         HWND m_window;
 
-        uint32_t m_width;
-        uint32_t m_height;
         std::string m_title;
 
         bool m_running;

@@ -1,13 +1,11 @@
-#include "util/calmwin.h"
 #include "core/app.h"
-
-#include <iostream>
-#include <system_error>
-#include <array>
+#include "util/util.h"
+#include "util/calmwin.h"
 
 #include "triangle_vs.h"
 #include "triangle_ps.h"
-#include "util/util.h"
+
+#include <array>
 
 // TODO: Significant error handling
 
@@ -60,9 +58,9 @@ int main()
     context->OMSetRenderTargets(1, rtv.GetAddressOf(), nullptr);
 
     std::array<VertexPosColor, 3> vertices = {{
+        {XMFLOAT3(-0.5f, -0.5f, 0.0f), XMFLOAT3(1.0f, 0.0f, 1.0f)},
         {XMFLOAT3(0.0f, 0.5f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f)},
-        {XMFLOAT3(0.45f, -0.5f, 0.0f), XMFLOAT3(1.0f, 1.0f, 0.0f)},
-        {XMFLOAT3(-0.45f, -0.5f, 0.0f), XMFLOAT3(1.0f, 0.0f, 1.0f)},
+        {XMFLOAT3(0.5f, -0.5f, 0.0f), XMFLOAT3(1.0f, 1.0f, 0.0f)},
         }};
 
     // Vertex buffer
@@ -83,8 +81,6 @@ int main()
 
     throw_if_failed(device->CreateBuffer(&buf_desc, &buf_data, v_buf.GetAddressOf()));
 
-    context->IASetVertexBuffers(0, 1, v_buf.GetAddressOf(), &stride, &offset);
-
     // Vertex shader
     ComPtr<ID3D11VertexShader> vs = nullptr;
     throw_if_failed(device->CreateVertexShader(g_vs_main, sizeof(g_vs_main), nullptr, vs.GetAddressOf()));
@@ -100,17 +96,17 @@ int main()
 
     ComPtr<ID3D11InputLayout> input_layout;
     throw_if_failed(device->CreateInputLayout(layout, 2, g_vs_main, sizeof(g_vs_main), input_layout.GetAddressOf()));
+    context->IASetVertexBuffers(0, 1, v_buf.GetAddressOf(), &stride, &offset);
 
     D3D11_VIEWPORT vp = {};
     vp.TopLeftX = 0;
     vp.TopLeftY = 0;
-    vp.Width = 500;
-    vp.Height = 500;
+    vp.Width = app.m_width;
+    vp.Height = app.m_height;
     vp.MaxDepth = 1.0f;
 
     context->IASetInputLayout(input_layout.Get());
     context->VSSetShader(vs.Get(), nullptr, 0);
-    context->RSSetViewports(1, &vp);
     context->PSSetShader(ps.Get(), nullptr, 0);
 
     MSG msg = {};
@@ -121,7 +117,9 @@ int main()
 
         float color[4] = {0.0f, 0.2f, 0.4f, 1.0f};
         context->ClearRenderTargetView(rtv.Get(), color);
-        context->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        context->RSSetViewports(1, &vp);
+
         context->Draw(3, 0);
 
         swap_chain->Present(1, 0);

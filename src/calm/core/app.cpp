@@ -56,7 +56,7 @@ void calm::App::init_application()
     win_class.style = CS_HREDRAW | CS_VREDRAW;
     win_class.lpfnWndProc = window_proc;
     win_class.hInstance = m_instance;
-    win_class.hCursor = LoadCursor(nullptr, IDC_WAIT);
+    win_class.hCursor = LoadCursor(nullptr, IDC_ARROW);
     win_class.lpszClassName = m_title.c_str();
 
     if (!RegisterClassEx(&win_class))
