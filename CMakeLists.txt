@@ -26,4 +26,4 @@ add_executable(calm
 
 target_include_directories(calm PRIVATE ${SHADERS})
 target_include_directories(calm PRIVATE external)
-target_link_libraries(calm SDL2-static D3d11 DXGI D3dcompiler)
+target_link_libraries(calm D3d11 DXGI D3dcompiler)
