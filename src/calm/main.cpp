@@ -22,6 +22,7 @@ struct VertexPosColor
 int main()
 {
     calm::App app(1280, 720, "calm engine");
+    std::cout << app.m_height << '\n';
 
     ComPtr<ID3D11Device> device;
     ComPtr<ID3D11DeviceContext> context;
@@ -54,18 +55,73 @@ int main()
         &context
     ));
 
+    // Color + Depth + Stencil
+    ComPtr<ID3D11Texture2D> tex_col;
     ComPtr<ID3D11RenderTargetView> rtv;
-    {
-        ComPtr<ID3D11Texture2D> back_buffer;
-        throw_if_failed(swap_chain->GetBuffer(0, __uuidof(ID3D11Texture2D), &back_buffer));
-        throw_if_failed(device->CreateRenderTargetView(back_buffer.Get(), nullptr, rtv.GetAddressOf()));
-    }
+    throw_if_failed(swap_chain->GetBuffer(0, __uuidof(ID3D11Texture2D), &tex_col));
+    throw_if_failed(device->CreateRenderTargetView(tex_col.Get(), nullptr, rtv.GetAddressOf()));
 
+    ComPtr<ID3D11Texture2D> tex_ds;
+    ComPtr<ID3D11DepthStencilState> ds;
+
+    D3D11_TEXTURE2D_DESC ds_buffer_desc = {};
+    ds_buffer_desc.Width = app.m_width;
+    ds_buffer_desc.Height = app.m_height;
+    ds_buffer_desc.MipLevels = 1;
+    ds_buffer_desc.ArraySize = 1;
+    ds_buffer_desc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    ds_buffer_desc.SampleDesc.Count = 1;
+    ds_buffer_desc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+
+    CD3D11_DEPTH_STENCIL_DESC ds_state_desc;
+    ds_state_desc.DepthEnable = true;
+    ds_state_desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+    ds_state_desc.DepthFunc = D3D11_COMPARISON_LESS;
+    ds_state_desc.StencilEnable = true;
+    ds_state_desc.StencilReadMask = 0xFF;
+    ds_state_desc.StencilWriteMask = 0xFF;
+
+    ds_state_desc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+    ds_state_desc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
+    ds_state_desc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+    ds_state_desc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+
+    ds_state_desc.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+    ds_state_desc.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_DECR;
+    ds_state_desc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+    ds_state_desc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+
+    throw_if_failed(device->CreateTexture2D(&ds_buffer_desc, nullptr, tex_ds.GetAddressOf()));
+    throw_if_failed(device->CreateDepthStencilState(&ds_state_desc, ds.GetAddressOf()));
+
+    ComPtr<ID3D11DepthStencilView> ds_view;
+    D3D11_DEPTH_STENCIL_VIEW_DESC ds_view_desc = {};
+    ds_view_desc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    ds_view_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+    ds_view_desc.Texture2D.MipSlice = 0;
+
+    throw_if_failed(device->CreateDepthStencilView(tex_ds.Get(), &ds_view_desc, ds_view.GetAddressOf()));
+
+    // Data
     std::array<VertexPosColor, 3> vertices = {{
         {XMFLOAT3(-0.5f, -0.5f, 0.0f), XMFLOAT3(1.0f, 0.0f, 1.0f)},
         {XMFLOAT3(0.0f, 0.5f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f)},
         {XMFLOAT3(0.5f, -0.5f, 0.0f), XMFLOAT3(1.0f, 1.0f, 0.0f)},
         }};
+
+    XMMATRIX model = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
+    XMMATRIX view = XMMatrixLookAtLH(
+        XMVectorSet(0.0f, 0.0f, -3.0f, 0.0f),
+        XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f),
+        XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)
+        );
+    XMMATRIX projection = XMMatrixPerspectiveFovLH(
+        XMConvertToRadians(45.0f),
+        (float) app.m_width / (float) app.m_height,
+        0.001, 100.0f
+        );
+
+    XMMATRIX mvp = model * view * projection;
 
     // Vertex buffer
     ComPtr<ID3D11Buffer> v_buf;
@@ -77,13 +133,24 @@ int main()
 
     D3D11_SUBRESOURCE_DATA buf_data = {};
     buf_data.pSysMem = vertices.data();
-    buf_data.SysMemPitch = 0;
-    buf_data.SysMemSlicePitch = 0;
 
     uint32_t stride = sizeof(VertexPosColor);
     uint32_t offset = 0;
 
     throw_if_failed(device->CreateBuffer(&buf_desc, &buf_data, v_buf.GetAddressOf()));
+
+    // Constant buffer
+    ComPtr<ID3D11Buffer> cam_buf;
+
+    D3D11_BUFFER_DESC cam_buf_desc = {};
+    cam_buf_desc.Usage = D3D11_USAGE_DEFAULT;
+    cam_buf_desc.ByteWidth = sizeof(mvp);
+    cam_buf_desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+
+    D3D11_SUBRESOURCE_DATA cam_data = {};
+    cam_data.pSysMem = &mvp;
+
+    throw_if_failed(device->CreateBuffer(&cam_buf_desc, &cam_data, cam_buf.GetAddressOf()));
 
     // Vertex shader
     ComPtr<ID3D11VertexShader> vs = nullptr;
@@ -111,7 +178,10 @@ int main()
 
     context->IASetInputLayout(input_layout.Get());
     context->VSSetShader(vs.Get(), nullptr, 0);
+    context->VSSetConstantBuffers(0, 1, cam_buf.GetAddressOf());
     context->PSSetShader(ps.Get(), nullptr, 0);
+    context->OMSetRenderTargets(1, rtv.GetAddressOf(), nullptr);
+    context->OMSetDepthStencilState(ds.Get(), 1);
 
     // ImGui
     IMGUI_CHECKVERSION();
@@ -138,7 +208,6 @@ int main()
         ImGui::ShowDemoWindow();
 
         float color[4] = {0.0f, 0.2f, 0.4f, 1.0f};
-        context->OMSetRenderTargets(1, rtv.GetAddressOf(), nullptr);
         context->ClearRenderTargetView(rtv.Get(), color);
         context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         context->RSSetViewports(1, &vp);

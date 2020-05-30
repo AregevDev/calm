@@ -4,6 +4,11 @@ struct VSInput
     float3 color : COLOR;
 };
 
+cbuffer CamBuf : register(b0)
+{
+    matrix mvp;
+}
+
 struct VSOutput
 {
     float4 position : SV_POSITION;
@@ -13,7 +18,7 @@ struct VSOutput
 VSOutput vs_main(VSInput input)
 {
     VSOutput output;
-    output.position = float4(input.position, 1.0);
+    output.position = mul(mvp, float4(input.position, 1.0));
     output.color = input.color;
 
     return output;
