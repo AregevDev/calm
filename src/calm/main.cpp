@@ -1,6 +1,4 @@
-#include "core/app.h"
 #include "util/util.h"
-#include "util/calmwin.h"
 
 #include "triangle_vs.h"
 #include "triangle_ps.h"
@@ -19,22 +17,78 @@ struct VertexPosColor
     XMFLOAT3 color;
 };
 
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+{
+    if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wparam, lparam))
+        return true;
+
+    switch (msg)
+    {
+        case WM_DESTROY:
+            PostQuitMessage(0);
+            break;
+
+        case WM_SIZE:
+            int w = LOWORD(lparam);
+            int h = HIWORD(lparam);
+            break;
+    }
+
+    return DefWindowProc(hwnd, msg, wparam, lparam);
+}
+
 int main()
 {
-    calm::App app(1280, 720, "calm engine");
-    std::cout << app.m_height << '\n';
+    uint32_t width = 1280, height = 720;
+    std::string title = "calm engine";
+
+    HINSTANCE instance = GetModuleHandle(nullptr);
+
+    WNDCLASSEX win_class = {};
+    win_class.cbSize = sizeof(WNDCLASSEX);
+    win_class.style = CS_HREDRAW | CS_VREDRAW;
+    win_class.lpfnWndProc = window_proc;
+    win_class.hInstance = instance;
+    win_class.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    win_class.lpszClassName = title.c_str();
+
+    if (!RegisterClassEx(&win_class))
+        std::cerr << "Failed to register window class: " << GetLastError() << std::endl;
+
+    // Create window
+    HWND window = CreateWindowEx(
+        0,
+        title.c_str(),
+        title.c_str(),
+        WS_OVERLAPPEDWINDOW,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        width,
+        height,
+        nullptr,
+        nullptr,
+        instance,
+        nullptr
+    );
+
+    if (!window)
+        std::cerr << "Failed to create a window: "  << GetLastError() << '\n';
+
+    ShowWindow(window, SW_SHOW);
 
     ComPtr<ID3D11Device> device;
     ComPtr<ID3D11DeviceContext> context;
     ComPtr<IDXGISwapChain> swap_chain;
 
     DXGI_SWAP_CHAIN_DESC desc = {};
-    desc.BufferCount = 1;
+    desc.BufferCount = 3;
     desc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     desc.SampleDesc.Count = 1;
     desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     desc.Windowed = true;
-    desc.OutputWindow = app.get_hwnd();
+    desc.OutputWindow = window;
     desc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
     D3D_FEATURE_LEVEL level = D3D_FEATURE_LEVEL_11_0;
@@ -65,8 +119,8 @@ int main()
     ComPtr<ID3D11DepthStencilState> ds;
 
     D3D11_TEXTURE2D_DESC ds_buffer_desc = {};
-    ds_buffer_desc.Width = app.m_width;
-    ds_buffer_desc.Height = app.m_height;
+    ds_buffer_desc.Width = width;
+    ds_buffer_desc.Height = height;
     ds_buffer_desc.MipLevels = 1;
     ds_buffer_desc.ArraySize = 1;
     ds_buffer_desc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
@@ -117,7 +171,7 @@ int main()
         );
     XMMATRIX projection = XMMatrixPerspectiveFovLH(
         XMConvertToRadians(45.0f),
-        (float) app.m_width / (float) app.m_height,
+        (float) width / (float) height,
         0.001, 100.0f
         );
 
@@ -172,8 +226,8 @@ int main()
     D3D11_VIEWPORT vp = {};
     vp.TopLeftX = 0;
     vp.TopLeftY = 0;
-    vp.Width = app.m_width;
-    vp.Height = app.m_height;
+    vp.Width = width;
+    vp.Height = height;
     vp.MaxDepth = 1.0f;
 
     context->IASetInputLayout(input_layout.Get());
@@ -192,20 +246,34 @@ int main()
 
     ImGui::StyleColorsClassic();
 
-    ImGui_ImplWin32_Init(app.get_hwnd());
+    ImGui_ImplWin32_Init(window);
     ImGui_ImplDX11_Init(device.Get(), context.Get());
 
     MSG msg = {};
-    while ((GetMessage(&msg, nullptr, 0, 0)) > 0)
+    while (msg.message != WM_QUIT)
     {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
+        if ((PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) > 0)
+        {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+
+            switch (msg.message)
+            {
+
+            }
+
+            continue;
+        }
 
         ImGui_ImplDX11_NewFrame();
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
         ImGui::ShowDemoWindow();
+
+        model *= XMMatrixRotationZ(0.2f * (float) std::cos(ImGui::GetTime()));
+        mvp = model * view * projection;
+        context->UpdateSubresource(cam_buf.Get(), 0, nullptr, &mvp, 0, 0);
 
         float color[4] = {0.0f, 0.2f, 0.4f, 1.0f};
         context->ClearRenderTargetView(rtv.Get(), color);
@@ -223,6 +291,9 @@ int main()
     ImGui_ImplDX11_Shutdown();
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();
+
+    DestroyWindow(window);
+    UnregisterClass(title.c_str(), instance);
 
     return msg.wParam;
 }

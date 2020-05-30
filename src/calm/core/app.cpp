@@ -10,23 +10,6 @@
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
-{
-    if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wparam, lparam))
-        return true;
-
-    switch (msg)
-    {
-
-        case WM_DESTROY:
-            PostQuitMessage(0);
-            break;
-    }
-
-    return DefWindowProc(hwnd, msg, wparam, lparam);
-}
-
-
 calm::App::App(uint32_t width, uint32_t height, std::string_view title) :
     m_instance(nullptr),
     m_window(nullptr),
@@ -68,7 +51,7 @@ void calm::App::init_application()
     WNDCLASSEX win_class = {};
     win_class.cbSize = sizeof(WNDCLASSEX);
     win_class.style = CS_HREDRAW | CS_VREDRAW;
-    win_class.lpfnWndProc = window_proc;
+    win_class.lpfnWndProc = nullptr;
     win_class.hInstance = m_instance;
     win_class.hCursor = LoadCursor(nullptr, IDC_ARROW);
     win_class.lpszClassName = m_title.c_str();
