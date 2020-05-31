@@ -3,18 +3,27 @@
 #include "triangle_vs.h"
 #include "triangle_ps.h"
 
+#include "assimp/Importer.hpp"
+#include "assimp/mesh.h"
+#include "assimp/postprocess.h"
+
 #include <ImGui/imgui.h>
 #include <ImGui/imgui_impl_win32.h>
 #include <ImGui/imgui_impl_dx11.h>
 
 #include <array>
+#include <vector>
+#include <assimp/include/assimp/scene.h>
 
 // TODO: Significant error handling
 
-struct VertexPosColor
+struct Vertex
 {
     XMFLOAT3 position;
-    XMFLOAT3 color;
+    XMFLOAT3 normal;
+    XMFLOAT2 tex_coord;
+    XMFLOAT3 tangent;
+    XMFLOAT3 bitangent;
 };
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -31,12 +40,68 @@ LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
             break;
 
         case WM_SIZE:
-            int w = LOWORD(lparam);
-            int h = HIWORD(lparam);
+
+            break;
+
+        case WM_KEYDOWN:
             break;
     }
 
     return DefWindowProc(hwnd, msg, wparam, lparam);
+}
+
+size_t load_model(const char* filepath, ID3D11Device* device, ID3D11Buffer** v_buf, ID3D11Buffer** i_buf)
+{
+    // Load scene
+    Assimp::Importer importer;
+    const aiScene* scene = importer.ReadFile(filepath, aiProcess_Triangulate | aiProcess_OptimizeMeshes);
+    aiMesh* mesh = scene->mMeshes[0];
+
+    std::vector<Vertex> vertices;
+    std::vector<uint32_t> indices;
+
+    for (uint32_t i = 0; i < mesh->mNumVertices; i++)
+    {
+        Vertex vert{};
+        vert.position = XMFLOAT3(mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z);
+        vert.normal = XMFLOAT3(mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z);
+        vert.tex_coord = XMFLOAT2(mesh->mTextureCoords[0][i].x, mesh->mTextureCoords[0][i].y);
+        vert.tangent = XMFLOAT3(mesh->mTangents[i].x, mesh->mTangents[i].y, mesh->mTangents[i].z);
+        vert.bitangent = XMFLOAT3(mesh->mBitangents[i].x, mesh->mBitangents[i].y, mesh->mBitangents[i].z);
+
+        vertices.push_back(vert);
+    }
+
+    for (uint32_t i = 0; i < mesh->mNumFaces; i++)
+    {
+        aiFace face = mesh->mFaces[i];
+
+        indices.push_back(face.mIndices[0]);
+        indices.push_back(face.mIndices[1]);
+        indices.push_back(face.mIndices[2]);
+    }
+
+    D3D11_BUFFER_DESC v_desc = {};
+    v_desc.Usage = D3D11_USAGE_DEFAULT;
+    v_desc.ByteWidth = vertices.size() * sizeof(Vertex);
+    v_desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+
+    D3D11_SUBRESOURCE_DATA v_subres = {};
+    v_subres.pSysMem = vertices.data();
+
+    throw_if_failed(device->CreateBuffer(&v_desc, &v_subres, v_buf));
+
+    D3D11_BUFFER_DESC i_desc = {};
+    i_desc.Usage = D3D11_USAGE_DEFAULT;
+    i_desc.ByteWidth = indices.size() * sizeof(uint32_t);
+    i_desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+
+    D3D11_SUBRESOURCE_DATA i_subres = {};
+    i_subres.pSysMem = indices.data();
+
+    throw_if_failed(device->CreateBuffer(&i_desc, &i_subres, i_buf));
+
+    return indices.size();
 }
 
 int main()
@@ -157,17 +222,11 @@ int main()
     throw_if_failed(device->CreateDepthStencilView(tex_ds.Get(), &ds_view_desc, ds_view.GetAddressOf()));
 
     // Data
-    std::array<VertexPosColor, 3> vertices = {{
-        {XMFLOAT3(-0.5f, -0.5f, 0.0f), XMFLOAT3(1.0f, 0.0f, 1.0f)},
-        {XMFLOAT3(0.0f, 0.5f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f)},
-        {XMFLOAT3(0.5f, -0.5f, 0.0f), XMFLOAT3(1.0f, 1.0f, 0.0f)},
-        }};
-
-    XMMATRIX model = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
+    XMMATRIX model = XMMatrixScaling(28.0f, 28.0f, 28.0f);
     XMMATRIX view = XMMatrixLookAtLH(
-        XMVectorSet(0.0f, 0.0f, -3.0f, 0.0f),
-        XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f),
-        XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)
+        XMVectorSet(9.0f, 4.0f, -9.0f, 1.0f),
+        XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f),
+        XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f)
         );
     XMMATRIX projection = XMMatrixPerspectiveFovLH(
         XMConvertToRadians(45.0f),
@@ -178,9 +237,7 @@ int main()
     XMMATRIX mvp = model * view * projection;
 
     // Vertex buffer
-    ComPtr<ID3D11Buffer> v_buf;
-
-    D3D11_BUFFER_DESC buf_desc = {};
+    /*D3D11_BUFFER_DESC buf_desc = {};
     buf_desc.Usage = D3D11_USAGE_DEFAULT;
     buf_desc.ByteWidth = sizeof(VertexPosColor) * vertices.size();
     buf_desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
@@ -191,7 +248,11 @@ int main()
     uint32_t stride = sizeof(VertexPosColor);
     uint32_t offset = 0;
 
-    throw_if_failed(device->CreateBuffer(&buf_desc, &buf_data, v_buf.GetAddressOf()));
+    throw_if_failed(device->CreateBuffer(&buf_desc, &buf_data, v_buf.GetAddressOf()));*/
+
+    // Load model
+    ComPtr<ID3D11Buffer> v_buf, i_buf;
+    size_t to_draw = load_model("assets/models/doughnut.gltf", device.Get(), &v_buf, &i_buf);
 
     // Constant buffer
     ComPtr<ID3D11Buffer> cam_buf;
@@ -215,13 +276,29 @@ int main()
     throw_if_failed(device->CreatePixelShader(g_ps_main, sizeof(g_ps_main), nullptr, ps.GetAddressOf()));
 
     D3D11_INPUT_ELEMENT_DESC layout[] = {
-        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,  D3D11_INPUT_PER_VERTEX_DATA, 0},
-        {"COLOR",    0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"TEX_COORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"BITANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
     };
 
     ComPtr<ID3D11InputLayout> input_layout;
-    throw_if_failed(device->CreateInputLayout(layout, 2, g_vs_main, sizeof(g_vs_main), input_layout.GetAddressOf()));
+    throw_if_failed(device->CreateInputLayout(layout, 5, g_vs_main, sizeof(g_vs_main), input_layout.GetAddressOf()));
+
+    ComPtr<ID3D11RasterizerState> raster;
+
+    D3D11_RASTERIZER_DESC raster_desc = {};
+    raster_desc.FillMode = D3D11_FILL_SOLID;
+    raster_desc.CullMode = D3D11_CULL_NONE;
+
+    throw_if_failed(device->CreateRasterizerState(&raster_desc, &raster));
+
+    uint32_t stride = sizeof(Vertex);
+    uint32_t offset = 0;
     context->IASetVertexBuffers(0, 1, v_buf.GetAddressOf(), &stride, &offset);
+    context->IASetIndexBuffer(i_buf.Get(), DXGI_FORMAT_R32_UINT, 0);
+    context->IASetInputLayout(input_layout.Get());
 
     D3D11_VIEWPORT vp = {};
     vp.TopLeftX = 0;
@@ -230,11 +307,11 @@ int main()
     vp.Height = height;
     vp.MaxDepth = 1.0f;
 
-    context->IASetInputLayout(input_layout.Get());
     context->VSSetShader(vs.Get(), nullptr, 0);
     context->VSSetConstantBuffers(0, 1, cam_buf.GetAddressOf());
+    context->RSSetState(raster.Get());
     context->PSSetShader(ps.Get(), nullptr, 0);
-    context->OMSetRenderTargets(1, rtv.GetAddressOf(), nullptr);
+    context->OMSetRenderTargets(1, rtv.GetAddressOf(), ds_view.Get());
     context->OMSetDepthStencilState(ds.Get(), 1);
 
     // ImGui
@@ -256,12 +333,6 @@ int main()
         {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
-
-            switch (msg.message)
-            {
-
-            }
-
             continue;
         }
 
@@ -271,16 +342,18 @@ int main()
 
         ImGui::ShowDemoWindow();
 
-        model *= XMMatrixRotationZ(0.2f * (float) std::cos(ImGui::GetTime()));
+        model *= XMMatrixRotationY(XMConvertToRadians(1.0f));
         mvp = model * view * projection;
         context->UpdateSubresource(cam_buf.Get(), 0, nullptr, &mvp, 0, 0);
 
         float color[4] = {0.0f, 0.2f, 0.4f, 1.0f};
         context->ClearRenderTargetView(rtv.Get(), color);
+        context->ClearDepthStencilView(ds_view.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0.0f);
+
         context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         context->RSSetViewports(1, &vp);
 
-        context->Draw(3, 0);
+        context->DrawIndexed(to_draw, 0, 0);
 
         ImGui::Render();
         ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());

@@ -9,6 +9,10 @@ file(GLOB SHADERS
         assets/shaders/compiled
         )
 
+add_custom_target(compile-shaders
+        COMMAND fxc.exe
+)
+
 add_executable(calm
         src/calm/main.cpp
 
@@ -26,4 +30,4 @@ add_executable(calm
 
 target_include_directories(calm PRIVATE ${SHADERS})
 target_include_directories(calm PRIVATE external)
-target_link_libraries(calm D3d11 DXGI D3dcompiler)
+target_link_libraries(calm D3d11 DXGI D3dcompiler assimp)
