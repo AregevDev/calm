@@ -9,7 +9,13 @@ struct PSInput
     float3 bitangent : BITANGENT;
 };
 
+cbuffer MaterialBuf : register(b0)
+{
+    float3 diffuse;
+};
+
 float4 ps_main(PSInput input) : SV_TARGET
 {
-    return float4(abs(input.normal), 1.0);
+    return float4(diffuse, 1.0);
 }
+

@@ -4,7 +4,8 @@
 #include "triangle_ps.h"
 
 #include "assimp/Importer.hpp"
-#include "assimp/mesh.h"
+#include "assimp/scene.h"
+#include "assimp/pbrmaterial.h"
 #include "assimp/postprocess.h"
 
 #include <ImGui/imgui.h>
@@ -13,7 +14,6 @@
 
 #include <array>
 #include <vector>
-#include <assimp/include/assimp/scene.h>
 
 // TODO: Significant error handling
 
@@ -24,6 +24,11 @@ struct Vertex
     XMFLOAT2 tex_coord;
     XMFLOAT3 tangent;
     XMFLOAT3 bitangent;
+};
+
+struct alignas(16) Material
+{
+   XMFLOAT3 diffuse;
 };
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -50,11 +55,11 @@ LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
     return DefWindowProc(hwnd, msg, wparam, lparam);
 }
 
-size_t load_model(const char* filepath, ID3D11Device* device, ID3D11Buffer** v_buf, ID3D11Buffer** i_buf)
+size_t load_model(const char* filepath, ID3D11Device* device, ID3D11Buffer** v_buf, ID3D11Buffer** i_buf, ID3D11Buffer** c_buf_mat)
 {
     // Load scene
     Assimp::Importer importer;
-    const aiScene* scene = importer.ReadFile(filepath, aiProcess_Triangulate | aiProcess_OptimizeMeshes);
+    const aiScene* scene = importer.ReadFile(filepath, aiProcess_Triangulate | aiProcess_OptimizeMeshes | aiProcess_CalcTangentSpace | aiProcess_GenBoundingBoxes);
     aiMesh* mesh = scene->mMeshes[0];
 
     std::vector<Vertex> vertices;
@@ -81,6 +86,7 @@ size_t load_model(const char* filepath, ID3D11Device* device, ID3D11Buffer** v_b
         indices.push_back(face.mIndices[2]);
     }
 
+    // Create the vertex buffer
     D3D11_BUFFER_DESC v_desc = {};
     v_desc.Usage = D3D11_USAGE_DEFAULT;
     v_desc.ByteWidth = vertices.size() * sizeof(Vertex);
@@ -91,6 +97,7 @@ size_t load_model(const char* filepath, ID3D11Device* device, ID3D11Buffer** v_b
 
     throw_if_failed(device->CreateBuffer(&v_desc, &v_subres, v_buf));
 
+    // Create the index buffer
     D3D11_BUFFER_DESC i_desc = {};
     i_desc.Usage = D3D11_USAGE_DEFAULT;
     i_desc.ByteWidth = indices.size() * sizeof(uint32_t);
@@ -100,6 +107,25 @@ size_t load_model(const char* filepath, ID3D11Device* device, ID3D11Buffer** v_b
     i_subres.pSysMem = indices.data();
 
     throw_if_failed(device->CreateBuffer(&i_desc, &i_subres, i_buf));
+
+    // Load the materials
+    aiMaterial* aiMaterial = scene->mMaterials[mesh->mMaterialIndex];
+
+    aiColor3D diffuse(1.0f, 1.0f, 1.0f);
+    aiMaterial->Get(AI_MATKEY_COLOR_DIFFUSE, diffuse);
+
+    Material mat{};
+    mat.diffuse = XMFLOAT3(diffuse.r, diffuse.g, diffuse.b);
+
+    D3D11_BUFFER_DESC c_desc = {};
+    c_desc.Usage = D3D11_USAGE_DEFAULT;
+    c_desc.ByteWidth = sizeof(mat);
+    c_desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+
+    D3D11_SUBRESOURCE_DATA c_subres = {};
+    c_subres.pSysMem = &mat;
+
+    throw_if_failed(device->CreateBuffer(&c_desc, &c_subres, c_buf_mat));
 
     return indices.size();
 }
@@ -222,7 +248,7 @@ int main()
     throw_if_failed(device->CreateDepthStencilView(tex_ds.Get(), &ds_view_desc, ds_view.GetAddressOf()));
 
     // Data
-    XMMATRIX model = XMMatrixScaling(28.0f, 28.0f, 28.0f);
+    XMMATRIX model = XMMatrixScaling(5.0f, 5.0f, 5.0f);
     XMMATRIX view = XMMatrixLookAtLH(
         XMVectorSet(9.0f, 4.0f, -9.0f, 1.0f),
         XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f),
@@ -251,8 +277,8 @@ int main()
     throw_if_failed(device->CreateBuffer(&buf_desc, &buf_data, v_buf.GetAddressOf()));*/
 
     // Load model
-    ComPtr<ID3D11Buffer> v_buf, i_buf;
-    size_t to_draw = load_model("assets/models/doughnut.gltf", device.Get(), &v_buf, &i_buf);
+    ComPtr<ID3D11Buffer> v_buf, i_buf, c_buf_mat;
+    size_t to_draw = load_model("assets/models/icosphere.gltf", device.Get(), &v_buf, &i_buf, &c_buf_mat);
 
     // Constant buffer
     ComPtr<ID3D11Buffer> cam_buf;
@@ -310,6 +336,7 @@ int main()
     context->VSSetShader(vs.Get(), nullptr, 0);
     context->VSSetConstantBuffers(0, 1, cam_buf.GetAddressOf());
     context->RSSetState(raster.Get());
+    context->PSSetConstantBuffers(0, 1, c_buf_mat.GetAddressOf());
     context->PSSetShader(ps.Get(), nullptr, 0);
     context->OMSetRenderTargets(1, rtv.GetAddressOf(), ds_view.Get());
     context->OMSetDepthStencilState(ds.Get(), 1);
@@ -325,6 +352,12 @@ int main()
 
     ImGui_ImplWin32_Init(window);
     ImGui_ImplDX11_Init(device.Get(), context.Get());
+
+    LARGE_INTEGER current;
+    QueryPerformanceCounter(&current);
+
+    LARGE_INTEGER frequency;
+    QueryPerformanceFrequency(&frequency);
 
     MSG msg = {};
     while (msg.message != WM_QUIT)
