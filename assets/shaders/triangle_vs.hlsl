@@ -9,9 +9,12 @@ struct VSInput
     float3 bitangent : BITANGENT;
 };
 
-cbuffer CamBuf : register(b0)
+cbuffer CameraMatrices : register(b0)
 {
+    matrix v;
+    matrix mv;
     matrix mvp;
+    matrix n;
 }
 
 struct VSOutput
@@ -21,16 +24,24 @@ struct VSOutput
     float2 tex_coord : TEX_COORD;
     float3 tangent : TANGENT;
     float3 bitangent : BITANGENT;
+
+    float3 frag_pos : FRAG_POS;
+    float3 light_pos : LIGHT_POS;
 };
 
 VSOutput vs_main(VSInput input)
 {
+    float3 light_pos = float3(3.0, 3.0, -3.0);
+
     VSOutput output;
     output.position = mul(float4(input.position, 1.0), mvp);
-    output.normal = input.normal;
+    output.normal = mul(input.normal, (float3x3)n);
     output.tex_coord = input.tex_coord;
     output.tangent = input.tangent;
     output.bitangent = input.bitangent;
+
+    output.frag_pos = mul(float4(input.position, 1.0), mv);
+    output.light_pos = mul(float4(light_pos, 1.0), v);
 
     return output;
 }

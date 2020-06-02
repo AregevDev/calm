@@ -31,6 +31,14 @@ struct alignas(16) Material
    XMFLOAT3 diffuse;
 };
 
+struct CameraMatrices
+{
+    XMMATRIX v;
+    XMMATRIX mv;
+    XMMATRIX mvp;
+    XMMATRIX n;
+};
+
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
@@ -42,10 +50,6 @@ LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
     {
         case WM_DESTROY:
             PostQuitMessage(0);
-            break;
-
-        case WM_SIZE:
-
             break;
 
         case WM_KEYDOWN:
@@ -248,48 +252,38 @@ int main()
     throw_if_failed(device->CreateDepthStencilView(tex_ds.Get(), &ds_view_desc, ds_view.GetAddressOf()));
 
     // Data
-    XMMATRIX model = XMMatrixScaling(5.0f, 5.0f, 5.0f);
+    XMMATRIX model = XMMatrixScaling(64.0f, 64.0f, 64.0f);
     XMMATRIX view = XMMatrixLookAtLH(
-        XMVectorSet(9.0f, 4.0f, -9.0f, 1.0f),
+        XMVectorSet(18.0f, 4.0f, -18.0f, 1.0f),
         XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f),
         XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f)
-        );
+    );
     XMMATRIX projection = XMMatrixPerspectiveFovLH(
         XMConvertToRadians(45.0f),
         (float) width / (float) height,
         0.001, 100.0f
-        );
+    );
 
-    XMMATRIX mvp = model * view * projection;
-
-    // Vertex buffer
-    /*D3D11_BUFFER_DESC buf_desc = {};
-    buf_desc.Usage = D3D11_USAGE_DEFAULT;
-    buf_desc.ByteWidth = sizeof(VertexPosColor) * vertices.size();
-    buf_desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-
-    D3D11_SUBRESOURCE_DATA buf_data = {};
-    buf_data.pSysMem = vertices.data();
-
-    uint32_t stride = sizeof(VertexPosColor);
-    uint32_t offset = 0;
-
-    throw_if_failed(device->CreateBuffer(&buf_desc, &buf_data, v_buf.GetAddressOf()));*/
+    CameraMatrices cam{};
+    cam.v = view;
+    cam.mv = view * model;
+    cam.mvp = projection * cam.mv;
+    cam.n = XMMatrixTranspose(XMMatrixInverse(nullptr, cam.mv));
 
     // Load model
     ComPtr<ID3D11Buffer> v_buf, i_buf, c_buf_mat;
-    size_t to_draw = load_model("assets/models/icosphere.gltf", device.Get(), &v_buf, &i_buf, &c_buf_mat);
+    size_t to_draw = load_model("assets/models/doughnut.gltf", device.Get(), &v_buf, &i_buf, &c_buf_mat);
 
     // Constant buffer
     ComPtr<ID3D11Buffer> cam_buf;
 
     D3D11_BUFFER_DESC cam_buf_desc = {};
     cam_buf_desc.Usage = D3D11_USAGE_DEFAULT;
-    cam_buf_desc.ByteWidth = sizeof(mvp);
+    cam_buf_desc.ByteWidth = sizeof(CameraMatrices);
     cam_buf_desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 
     D3D11_SUBRESOURCE_DATA cam_data = {};
-    cam_data.pSysMem = &mvp;
+    cam_data.pSysMem = &cam;
 
     throw_if_failed(device->CreateBuffer(&cam_buf_desc, &cam_data, cam_buf.GetAddressOf()));
 
@@ -376,8 +370,12 @@ int main()
         ImGui::ShowDemoWindow();
 
         model *= XMMatrixRotationY(XMConvertToRadians(1.0f));
-        mvp = model * view * projection;
-        context->UpdateSubresource(cam_buf.Get(), 0, nullptr, &mvp, 0, 0);
+
+        cam.v = view;
+        cam.mv = model * view;
+        cam.mvp = model * view * projection;
+        cam.n = XMMatrixTranspose(XMMatrixInverse(nullptr, cam.mv));
+        context->UpdateSubresource(cam_buf.Get(), 0, nullptr, &cam, 0, 0);
 
         float color[4] = {0.0f, 0.2f, 0.4f, 1.0f};
         context->ClearRenderTargetView(rtv.Get(), color);
