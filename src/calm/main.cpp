@@ -5,8 +5,10 @@
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
-#include <assimp/pbrmaterial.h>
 #include <assimp/postprocess.h>
+
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb/stb_image.h>
 
 #include <ImGui/imgui.h>
 #include <ImGui/imgui_impl_win32.h>
@@ -59,7 +61,37 @@ LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
     return DefWindowProc(hwnd, msg, wparam, lparam);
 }
 
-size_t load_model(const char* filepath, uint32_t mesh_idx, ID3D11Device* device, ID3D11Buffer** v_buf, ID3D11Buffer** i_buf, ID3D11Buffer** c_buf_mat)
+void load_material_texture(const char* filepath, ID3D11Device* device, ID3D11Texture2D** tex, ID3D11ShaderResourceView** tex_srv)
+{
+    int32_t width, height, spp;
+    uint8_t* tex_data = stbi_load(filepath, &width, &height, &spp, 4);
+
+    D3D11_TEXTURE2D_DESC desc = {};
+    desc.Width = width;
+    desc.Height = height;
+    desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    desc.Usage = D3D11_USAGE_DYNAMIC;
+    desc.SampleDesc.Count = 1;
+    desc.MipLevels = 1;
+    desc.ArraySize = 1;
+
+    D3D11_SUBRESOURCE_DATA subres = {};
+    subres.pSysMem = tex_data;
+    subres.SysMemPitch = width * spp;
+
+    throw_if_failed(device->CreateTexture2D(&desc, &subres, tex));
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
+    srv_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    srv_desc.Texture2D = {0, 1};
+
+    throw_if_failed(device->CreateShaderResourceView(*tex, &srv_desc, tex_srv));
+}
+
+size_t load_model(const char* filepath, uint32_t mesh_idx, ID3D11Device* device, ID3D11Buffer** v_buf, ID3D11Buffer** i_buf, ID3D11Buffer** c_buf_mat, ID3D11Texture2D** diffuse_tex, ID3D11ShaderResourceView** tex_srv)
 {
     // Load scene
     Assimp::Importer importer;
@@ -114,6 +146,12 @@ size_t load_model(const char* filepath, uint32_t mesh_idx, ID3D11Device* device,
 
     // Load the materials
     aiMaterial* aiMaterial = scene->mMaterials[mesh->mMaterialIndex];
+
+    aiString assets("assets/models/"), diffuse_path;
+    aiMaterial->GetTexture(aiTextureType_DIFFUSE, 0, &diffuse_path);
+    assets.Append(diffuse_path.C_Str());
+
+    load_material_texture(assets.C_Str(), device, diffuse_tex, tex_srv);
 
     aiColor3D diffuse(1.0f, 1.0f, 1.0f);
     aiMaterial->Get(AI_MATKEY_COLOR_DIFFUSE, diffuse);
@@ -252,7 +290,7 @@ int main()
     throw_if_failed(device->CreateDepthStencilView(tex_ds.Get(), &ds_view_desc, ds_view.GetAddressOf()));
 
     // Data
-    XMMATRIX model = XMMatrixScaling(48.0f, 48.0f, 48.0f);
+    XMMATRIX model = XMMatrixScaling(4.0f, 4.0f, 4.0f);
     XMMATRIX view = XMMatrixLookAtLH(
         XMVectorSet(18.0f, 18.0f, -18.0f, 1.0f),
         XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f),
@@ -272,10 +310,23 @@ int main()
 
     // Load model
     ComPtr<ID3D11Buffer> v_buf0, i_buf0, c_buf0;
-    size_t to_draw0 = load_model("assets/models/doughnut.gltf", 0, device.Get(), &v_buf0, &i_buf0, &c_buf0);
+    ComPtr<ID3D11Texture2D> diffuse_tex;
+    ComPtr<ID3D11SamplerState> sampler;
+    ComPtr<ID3D11ShaderResourceView> shader_view;
+    size_t to_draw0 = load_model("assets/models/textured.gltf", 0, device.Get(), &v_buf0, &i_buf0, &c_buf0, &diffuse_tex, &shader_view);
 
-    ComPtr<ID3D11Buffer> v_buf1, i_buf1, c_buf1;
-    size_t to_draw1 = load_model("assets/models/doughnut.gltf", 1, device.Get(), &v_buf1, &i_buf1, &c_buf1);
+    D3D11_SAMPLER_DESC sampler_desc = {};
+    sampler_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    sampler_desc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+    sampler_desc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+    sampler_desc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+    sampler_desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    sampler_desc.MaxLOD = D3D11_FLOAT32_MAX;
+
+    device->CreateSamplerState(&sampler_desc, &sampler);
+
+    /*ComPtr<ID3D11Buffer> v_buf1, i_buf1, c_buf1;
+    size_t to_draw1 = load_model("assets/models/doughnut.gltf", 1, device.Get(), &v_buf1, &i_buf1, &c_buf1);*/
 
     // Constant buffer
     ComPtr<ID3D11Buffer> cam_buf;
@@ -388,14 +439,16 @@ int main()
         context->IASetVertexBuffers(0, 1, v_buf0.GetAddressOf(), &stride, &offset);
         context->IASetIndexBuffer(i_buf0.Get(), DXGI_FORMAT_R32_UINT, 0);
         context->PSSetConstantBuffers(0, 1, c_buf0.GetAddressOf());
+        context->PSSetSamplers(0, 1, sampler.GetAddressOf());
+        context->PSSetShaderResources(0, 1, shader_view.GetAddressOf());
         context->VSSetShader(vs.Get(), nullptr, 0);
         context->DrawIndexed(to_draw0, 0, 0);
 
-        context->IASetVertexBuffers(0, 1, v_buf1.GetAddressOf(), &stride, &offset);
+        /*context->IASetVertexBuffers(0, 1, v_buf1.GetAddressOf(), &stride, &offset);
         context->IASetIndexBuffer(i_buf1.Get(), DXGI_FORMAT_R32_UINT, 0);
         context->PSSetConstantBuffers(0, 1, c_buf1.GetAddressOf());
         context->PSSetShader(ps.Get(), nullptr, 0);
-        context->DrawIndexed(to_draw1, 0, 0);
+        context->DrawIndexed(to_draw1, 0, 0);*/
 
         ImGui::Render();
         ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());

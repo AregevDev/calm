@@ -17,6 +17,9 @@ cbuffer MaterialBuf : register(b0)
     float3 diffuse;
 };
 
+sampler my_sampler : register(s0);
+Texture2D <float4> diffuse_tex : register(t0);
+
 float4 ps_main(PSInput input) : SV_TARGET
 {
     float3 light_color = float3(1.0, 1.0, 1.0);
@@ -27,7 +30,7 @@ float4 ps_main(PSInput input) : SV_TARGET
     float3 norm = normalize(input.normal);
     float3 light_dir = normalize(input.light_pos - input.frag_pos);
     float diff = max(dot(norm, light_dir), 0.0);
-    float3 diffuse1 = diff * light_color;
+    float3 diffuse1 = diff * light_color * diffuse_tex.Sample(my_sampler, input.tex_coord).rgb;
 
     float specular_strength = 0.5;
     float3 view_dir = normalize(-input.frag_pos);
@@ -36,5 +39,5 @@ float4 ps_main(PSInput input) : SV_TARGET
     float3 specular = specular_strength * spec * light_color;
 
     float3 result = (ambient + diffuse1 + specular) * diffuse;
-    return float4(diffuse, 1.0);
+    return float4(result, 1.0);
 }
