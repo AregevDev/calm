@@ -3,10 +3,10 @@
 #include "triangle_vs.h"
 #include "triangle_ps.h"
 
-#include "assimp/Importer.hpp"
-#include "assimp/scene.h"
-#include "assimp/pbrmaterial.h"
-#include "assimp/postprocess.h"
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/pbrmaterial.h>
+#include <assimp/postprocess.h>
 
 #include <ImGui/imgui.h>
 #include <ImGui/imgui_impl_win32.h>
@@ -59,12 +59,12 @@ LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
     return DefWindowProc(hwnd, msg, wparam, lparam);
 }
 
-size_t load_model(const char* filepath, ID3D11Device* device, ID3D11Buffer** v_buf, ID3D11Buffer** i_buf, ID3D11Buffer** c_buf_mat)
+size_t load_model(const char* filepath, uint32_t mesh_idx, ID3D11Device* device, ID3D11Buffer** v_buf, ID3D11Buffer** i_buf, ID3D11Buffer** c_buf_mat)
 {
     // Load scene
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(filepath, aiProcess_Triangulate | aiProcess_OptimizeMeshes | aiProcess_CalcTangentSpace | aiProcess_GenBoundingBoxes);
-    aiMesh* mesh = scene->mMeshes[0];
+    aiMesh* mesh = scene->mMeshes[mesh_idx];
 
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
@@ -193,7 +193,7 @@ int main()
         nullptr,
         D3D_DRIVER_TYPE_HARDWARE,
         nullptr,
-        D3D11_CREATE_DEVICE_DEBUG,
+        D3D11_CREATE_DEVICE_DEBUG | D3D11_CREATE_DEVICE_BGRA_SUPPORT,
         &level,
         1,
         D3D11_SDK_VERSION,
@@ -252,9 +252,9 @@ int main()
     throw_if_failed(device->CreateDepthStencilView(tex_ds.Get(), &ds_view_desc, ds_view.GetAddressOf()));
 
     // Data
-    XMMATRIX model = XMMatrixScaling(64.0f, 64.0f, 64.0f);
+    XMMATRIX model = XMMatrixScaling(48.0f, 48.0f, 48.0f);
     XMMATRIX view = XMMatrixLookAtLH(
-        XMVectorSet(18.0f, 4.0f, -18.0f, 1.0f),
+        XMVectorSet(18.0f, 18.0f, -18.0f, 1.0f),
         XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f),
         XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f)
     );
@@ -271,8 +271,11 @@ int main()
     cam.n = XMMatrixTranspose(XMMatrixInverse(nullptr, cam.mv));
 
     // Load model
-    ComPtr<ID3D11Buffer> v_buf, i_buf, c_buf_mat;
-    size_t to_draw = load_model("assets/models/doughnut.gltf", device.Get(), &v_buf, &i_buf, &c_buf_mat);
+    ComPtr<ID3D11Buffer> v_buf0, i_buf0, c_buf0;
+    size_t to_draw0 = load_model("assets/models/doughnut.gltf", 0, device.Get(), &v_buf0, &i_buf0, &c_buf0);
+
+    ComPtr<ID3D11Buffer> v_buf1, i_buf1, c_buf1;
+    size_t to_draw1 = load_model("assets/models/doughnut.gltf", 1, device.Get(), &v_buf1, &i_buf1, &c_buf1);
 
     // Constant buffer
     ComPtr<ID3D11Buffer> cam_buf;
@@ -303,6 +306,9 @@ int main()
         {"BITANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
     };
 
+    uint32_t stride = sizeof(Vertex);
+    uint32_t offset = 0;
+
     ComPtr<ID3D11InputLayout> input_layout;
     throw_if_failed(device->CreateInputLayout(layout, 5, g_vs_main, sizeof(g_vs_main), input_layout.GetAddressOf()));
 
@@ -313,11 +319,6 @@ int main()
     raster_desc.CullMode = D3D11_CULL_NONE;
 
     throw_if_failed(device->CreateRasterizerState(&raster_desc, &raster));
-
-    uint32_t stride = sizeof(Vertex);
-    uint32_t offset = 0;
-    context->IASetVertexBuffers(0, 1, v_buf.GetAddressOf(), &stride, &offset);
-    context->IASetIndexBuffer(i_buf.Get(), DXGI_FORMAT_R32_UINT, 0);
     context->IASetInputLayout(input_layout.Get());
 
     D3D11_VIEWPORT vp = {};
@@ -330,7 +331,7 @@ int main()
     context->VSSetShader(vs.Get(), nullptr, 0);
     context->VSSetConstantBuffers(0, 1, cam_buf.GetAddressOf());
     context->RSSetState(raster.Get());
-    context->PSSetConstantBuffers(0, 1, c_buf_mat.GetAddressOf());
+    context->PSSetConstantBuffers(0, 1, c_buf0.GetAddressOf());
     context->PSSetShader(ps.Get(), nullptr, 0);
     context->OMSetRenderTargets(1, rtv.GetAddressOf(), ds_view.Get());
     context->OMSetDepthStencilState(ds.Get(), 1);
@@ -384,7 +385,17 @@ int main()
         context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         context->RSSetViewports(1, &vp);
 
-        context->DrawIndexed(to_draw, 0, 0);
+        context->IASetVertexBuffers(0, 1, v_buf0.GetAddressOf(), &stride, &offset);
+        context->IASetIndexBuffer(i_buf0.Get(), DXGI_FORMAT_R32_UINT, 0);
+        context->PSSetConstantBuffers(0, 1, c_buf0.GetAddressOf());
+        context->VSSetShader(vs.Get(), nullptr, 0);
+        context->DrawIndexed(to_draw0, 0, 0);
+
+        context->IASetVertexBuffers(0, 1, v_buf1.GetAddressOf(), &stride, &offset);
+        context->IASetIndexBuffer(i_buf1.Get(), DXGI_FORMAT_R32_UINT, 0);
+        context->PSSetConstantBuffers(0, 1, c_buf1.GetAddressOf());
+        context->PSSetShader(ps.Get(), nullptr, 0);
+        context->DrawIndexed(to_draw1, 0, 0);
 
         ImGui::Render();
         ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());

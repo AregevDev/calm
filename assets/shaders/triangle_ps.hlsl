@@ -36,5 +36,5 @@ float4 ps_main(PSInput input) : SV_TARGET
     float3 specular = specular_strength * spec * light_color;
 
     float3 result = (ambient + diffuse1 + specular) * diffuse;
-    return float4(result, 1.0);
+    return float4(diffuse, 1.0);
 }
