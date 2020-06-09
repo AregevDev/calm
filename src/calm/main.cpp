@@ -1,5 +1,6 @@
 #include "util/util.h"
 
+#include "backend/context.h"
 #include "triangle_vs.h"
 #include "triangle_ps.h"
 
@@ -240,42 +241,13 @@ int main()
 
     ShowWindow(window, SW_SHOW);
 
-    ComPtr<ID3D11Device> device;
-    ComPtr<ID3D11DeviceContext> context;
-    ComPtr<IDXGISwapChain> swap_chain;
-
-    DXGI_SWAP_CHAIN_DESC desc = {};
-    desc.BufferCount = 3;
-    desc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    desc.SampleDesc.Count = 1;
-    desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    desc.Windowed = true;
-    desc.OutputWindow = window;
-    desc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
-
-    D3D_FEATURE_LEVEL level = D3D_FEATURE_LEVEL_11_0;
-    D3D_FEATURE_LEVEL supported;
-
-    throw_if_failed(D3D11CreateDeviceAndSwapChain(
-        nullptr,
-        D3D_DRIVER_TYPE_HARDWARE,
-        nullptr,
-        D3D11_CREATE_DEVICE_DEBUG | D3D11_CREATE_DEVICE_BGRA_SUPPORT,
-        &level,
-        1,
-        D3D11_SDK_VERSION,
-        &desc,
-        &swap_chain,
-        &device,
-        &supported,
-        &context
-    ));
+    Context ctx(window, 0);
 
     // Color + Depth + Stencil
     ComPtr<ID3D11Texture2D> tex_col;
     ComPtr<ID3D11RenderTargetView> rtv;
-    throw_if_failed(swap_chain->GetBuffer(0, __uuidof(ID3D11Texture2D), &tex_col));
-    throw_if_failed(device->CreateRenderTargetView(tex_col.Get(), nullptr, rtv.GetAddressOf()));
+    throw_if_failed(ctx.m_swap_chain->GetBuffer(0, __uuidof(ID3D11Texture2D), &tex_col));
+    throw_if_failed(ctx.m_device->CreateRenderTargetView(tex_col.Get(), nullptr, rtv.GetAddressOf()));
 
     ComPtr<ID3D11Texture2D> tex_ds;
     ComPtr<ID3D11DepthStencilState> ds;
@@ -307,8 +279,8 @@ int main()
     ds_state_desc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
     ds_state_desc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
 
-    throw_if_failed(device->CreateTexture2D(&ds_buffer_desc, nullptr, tex_ds.GetAddressOf()));
-    throw_if_failed(device->CreateDepthStencilState(&ds_state_desc, ds.GetAddressOf()));
+    throw_if_failed(ctx.m_device->CreateTexture2D(&ds_buffer_desc, nullptr, tex_ds.GetAddressOf()));
+    throw_if_failed(ctx.m_device->CreateDepthStencilState(&ds_state_desc, ds.GetAddressOf()));
 
     ComPtr<ID3D11DepthStencilView> ds_view;
     D3D11_DEPTH_STENCIL_VIEW_DESC ds_view_desc = {};
@@ -316,7 +288,7 @@ int main()
     ds_view_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
     ds_view_desc.Texture2D.MipSlice = 0;
 
-    throw_if_failed(device->CreateDepthStencilView(tex_ds.Get(), &ds_view_desc, ds_view.GetAddressOf()));
+    throw_if_failed(ctx.m_device->CreateDepthStencilView(tex_ds.Get(), &ds_view_desc, ds_view.GetAddressOf()));
 
     // Data
     XMMATRIX model = XMMatrixScaling(4.0f, 4.0f, 4.0f);
@@ -342,7 +314,7 @@ int main()
     ComPtr<ID3D11Texture2D> diffuse_tex;
     ComPtr<ID3D11SamplerState> sampler;
     ComPtr<ID3D11ShaderResourceView> shader_view;
-    size_t to_draw0 = load_model("assets/models/textured.gltf", 0, device.Get(), &v_buf0, &i_buf0, &c_buf0, &diffuse_tex, &shader_view);
+    size_t to_draw0 = load_model("assets/models/textured.gltf", 0, ctx.m_device.Get(), &v_buf0, &i_buf0, &c_buf0, &diffuse_tex, &shader_view);
 
     D3D11_SAMPLER_DESC sampler_desc = {};
     sampler_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
@@ -352,10 +324,7 @@ int main()
     sampler_desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
     sampler_desc.MaxLOD = D3D11_FLOAT32_MAX;
 
-    device->CreateSamplerState(&sampler_desc, &sampler);
-
-    /*ComPtr<ID3D11Buffer> v_buf1, i_buf1, c_buf1;
-    size_t to_draw1 = load_model("assets/models/doughnut.gltf", 1, device.Get(), &v_buf1, &i_buf1, &c_buf1);*/
+    ctx.m_device->CreateSamplerState(&sampler_desc, &sampler);
 
     // Constant buffer
     ComPtr<ID3D11Buffer> cam_buf;
@@ -368,15 +337,15 @@ int main()
     D3D11_SUBRESOURCE_DATA cam_data = {};
     cam_data.pSysMem = &cam;
 
-    throw_if_failed(device->CreateBuffer(&cam_buf_desc, &cam_data, cam_buf.GetAddressOf()));
+    throw_if_failed(ctx.m_device->CreateBuffer(&cam_buf_desc, &cam_data, cam_buf.GetAddressOf()));
 
     // Vertex shader
     ComPtr<ID3D11VertexShader> vs = nullptr;
-    throw_if_failed(device->CreateVertexShader(g_vs_main, sizeof(g_vs_main), nullptr, vs.GetAddressOf()));
+    throw_if_failed(ctx.m_device->CreateVertexShader(g_vs_main, sizeof(g_vs_main), nullptr, vs.GetAddressOf()));
 
     // Pixel shader
     ComPtr<ID3D11PixelShader> ps = nullptr;
-    throw_if_failed(device->CreatePixelShader(g_ps_main, sizeof(g_ps_main), nullptr, ps.GetAddressOf()));
+    throw_if_failed(ctx.m_device->CreatePixelShader(g_ps_main, sizeof(g_ps_main), nullptr, ps.GetAddressOf()));
 
     D3D11_INPUT_ELEMENT_DESC layout[] = {
         {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
@@ -390,7 +359,7 @@ int main()
     uint32_t offset = 0;
 
     ComPtr<ID3D11InputLayout> input_layout;
-    throw_if_failed(device->CreateInputLayout(layout, 5, g_vs_main, sizeof(g_vs_main), input_layout.GetAddressOf()));
+    throw_if_failed(ctx.m_device->CreateInputLayout(layout, 5, g_vs_main, sizeof(g_vs_main), input_layout.GetAddressOf()));
 
     ComPtr<ID3D11RasterizerState> raster;
 
@@ -398,8 +367,8 @@ int main()
     raster_desc.FillMode = D3D11_FILL_SOLID;
     raster_desc.CullMode = D3D11_CULL_NONE;
 
-    throw_if_failed(device->CreateRasterizerState(&raster_desc, &raster));
-    context->IASetInputLayout(input_layout.Get());
+    throw_if_failed(ctx.m_device->CreateRasterizerState(&raster_desc, &raster));
+    ctx.m_context->IASetInputLayout(input_layout.Get());
 
     D3D11_VIEWPORT vp = {};
     vp.TopLeftX = 0;
@@ -408,13 +377,13 @@ int main()
     vp.Height = height;
     vp.MaxDepth = 1.0f;
 
-    context->VSSetShader(vs.Get(), nullptr, 0);
-    context->VSSetConstantBuffers(0, 1, cam_buf.GetAddressOf());
-    context->RSSetState(raster.Get());
-    context->PSSetConstantBuffers(0, 1, c_buf0.GetAddressOf());
-    context->PSSetShader(ps.Get(), nullptr, 0);
-    context->OMSetRenderTargets(1, rtv.GetAddressOf(), ds_view.Get());
-    context->OMSetDepthStencilState(ds.Get(), 1);
+    ctx.m_context->VSSetShader(vs.Get(), nullptr, 0);
+    ctx.m_context->VSSetConstantBuffers(0, 1, cam_buf.GetAddressOf());
+    ctx.m_context->RSSetState(raster.Get());
+    ctx.m_context->PSSetConstantBuffers(0, 1, c_buf0.GetAddressOf());
+    ctx.m_context->PSSetShader(ps.Get(), nullptr, 0);
+    ctx.m_context->OMSetRenderTargets(1, rtv.GetAddressOf(), ds_view.Get());
+    ctx.m_context->OMSetDepthStencilState(ds.Get(), 1);
 
     // ImGui
     IMGUI_CHECKVERSION();
@@ -426,7 +395,7 @@ int main()
     ImGui::StyleColorsClassic();
 
     ImGui_ImplWin32_Init(window);
-    ImGui_ImplDX11_Init(device.Get(), context.Get());
+    ImGui_ImplDX11_Init(ctx.m_device.Get(), ctx.m_context.Get());
 
     auto now = std::chrono::high_resolution_clock::now();
     std::chrono::time_point<std::chrono::high_resolution_clock> last;
@@ -463,33 +432,27 @@ int main()
         cam.mv = model * view;
         cam.mvp = model * view * projection;
         cam.n = XMMatrixTranspose(XMMatrixInverse(nullptr, cam.mv));
-        context->UpdateSubresource(cam_buf.Get(), 0, nullptr, &cam, 0, 0);
+        ctx.m_context->UpdateSubresource(cam_buf.Get(), 0, nullptr, &cam, 0, 0);
 
         float color[4] = {0.0f, 0.2f, 0.4f, 1.0f};
-        context->ClearRenderTargetView(rtv.Get(), color);
-        context->ClearDepthStencilView(ds_view.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0.0f);
+        ctx.m_context->ClearRenderTargetView(rtv.Get(), color);
+        ctx.m_context->ClearDepthStencilView(ds_view.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0.0f);
 
-        context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        context->RSSetViewports(1, &vp);
+        ctx.m_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        ctx.m_context->RSSetViewports(1, &vp);
 
-        context->IASetVertexBuffers(0, 1, v_buf0.GetAddressOf(), &stride, &offset);
-        context->IASetIndexBuffer(i_buf0.Get(), DXGI_FORMAT_R32_UINT, 0);
-        context->PSSetConstantBuffers(0, 1, c_buf0.GetAddressOf());
-        context->PSSetSamplers(0, 1, sampler.GetAddressOf());
-        context->PSSetShaderResources(0, 1, shader_view.GetAddressOf());
-        context->VSSetShader(vs.Get(), nullptr, 0);
-        context->DrawIndexed(to_draw0, 0, 0);
-
-        /*context->IASetVertexBuffers(0, 1, v_buf1.GetAddressOf(), &stride, &offset);
-        context->IASetIndexBuffer(i_buf1.Get(), DXGI_FORMAT_R32_UINT, 0);
-        context->PSSetConstantBuffers(0, 1, c_buf1.GetAddressOf());
-        context->PSSetShader(ps.Get(), nullptr, 0);
-        context->DrawIndexed(to_draw1, 0, 0);*/
+        ctx.m_context->IASetVertexBuffers(0, 1, v_buf0.GetAddressOf(), &stride, &offset);
+        ctx.m_context->IASetIndexBuffer(i_buf0.Get(), DXGI_FORMAT_R32_UINT, 0);
+        ctx.m_context->PSSetConstantBuffers(0, 1, c_buf0.GetAddressOf());
+        ctx.m_context->PSSetSamplers(0, 1, sampler.GetAddressOf());
+        ctx.m_context->PSSetShaderResources(0, 1, shader_view.GetAddressOf());
+        ctx.m_context->VSSetShader(vs.Get(), nullptr, 0);
+        ctx.m_context->DrawIndexed(to_draw0, 0, 0);
 
         ImGui::Render();
         ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 
-        swap_chain->Present(1, 0);
+        ctx.m_swap_chain->Present(1, 0);
     }
 
     ImGui_ImplDX11_Shutdown();
@@ -500,4 +463,6 @@ int main()
     UnregisterClass(title.c_str(), instance);
 
     return msg.wParam;
+
+    return 0;
 }

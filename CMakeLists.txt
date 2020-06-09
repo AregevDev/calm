@@ -17,8 +17,9 @@ add_executable(calm
         src/calm/main.cpp
 
         src/calm/core/app.cpp
-        src/calm/backend/backend.cpp
-        src/calm/backend/device.cpp
+        src/calm/core/camera.cpp
+
+        src/calm/backend/context.cpp
 
         external/ImGui/imgui.cpp
         external/ImGui/imgui_demo.cpp
@@ -30,4 +31,4 @@ add_executable(calm
 
 target_include_directories(calm PRIVATE ${SHADERS})
 target_include_directories(calm PRIVATE external)
-target_link_libraries(calm D3d11 DXGI D3dcompiler assimp)
+target_link_libraries(calm D3d11 DXGI D3dcompiler assimp spdlog::spdlog)

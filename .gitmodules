@@ -2,3 +2,6 @@
 	path = external/assimp
 	url = https://github.com/assimp/assimp
 	branch = assimp_5.0_release
+[submodule "external/spdlog"]
+	path = external/spdlog
+	url = https://github.com/gabime/spdlog
