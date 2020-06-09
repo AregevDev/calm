@@ -291,7 +291,7 @@ int main()
     throw_if_failed(ctx.m_device->CreateDepthStencilView(tex_ds.Get(), &ds_view_desc, ds_view.GetAddressOf()));
 
     // Data
-    XMMATRIX model = XMMatrixScaling(4.0f, 4.0f, 4.0f);
+    XMMATRIX model = XMMatrixScaling(56.0f, 56.0f, 56.0f);
     XMMATRIX view = XMMatrixLookAtLH(
         XMVectorSet(18.0f, 18.0f, -18.0f, 1.0f),
         XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f),
@@ -314,7 +314,7 @@ int main()
     ComPtr<ID3D11Texture2D> diffuse_tex;
     ComPtr<ID3D11SamplerState> sampler;
     ComPtr<ID3D11ShaderResourceView> shader_view;
-    size_t to_draw0 = load_model("assets/models/textured.gltf", 0, ctx.m_device.Get(), &v_buf0, &i_buf0, &c_buf0, &diffuse_tex, &shader_view);
+    size_t to_draw0 = load_model("assets/models/doughnut.gltf", 0, ctx.m_device.Get(), &v_buf0, &i_buf0, &c_buf0, &diffuse_tex, &shader_view);
 
     D3D11_SAMPLER_DESC sampler_desc = {};
     sampler_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
@@ -397,6 +397,9 @@ int main()
     ImGui_ImplWin32_Init(window);
     ImGui_ImplDX11_Init(ctx.m_device.Get(), ctx.m_context.Get());
 
+    bool vsync = true;
+    float color[4] = {0.2, 0.4, 0.4, 1.0};
+
     auto now = std::chrono::high_resolution_clock::now();
     std::chrono::time_point<std::chrono::high_resolution_clock> last;
 
@@ -424,6 +427,11 @@ int main()
         ImGui::Begin("Frame Time");
         ImGui::Text("%f ms", delta * 1000.0f);
         ImGui::Text("%f FPS", 1.0 / delta);
+        ImGui::Checkbox("VSync", &vsync);
+        ImGui::End();
+
+        ImGui::Begin("Clear Color");
+        ImGui::ColorPicker4("", color);
         ImGui::End();
 
         model *= XMMatrixRotationY(XMConvertToRadians(100.0f * delta));
@@ -434,7 +442,6 @@ int main()
         cam.n = XMMatrixTranspose(XMMatrixInverse(nullptr, cam.mv));
         ctx.m_context->UpdateSubresource(cam_buf.Get(), 0, nullptr, &cam, 0, 0);
 
-        float color[4] = {0.0f, 0.2f, 0.4f, 1.0f};
         ctx.m_context->ClearRenderTargetView(rtv.Get(), color);
         ctx.m_context->ClearDepthStencilView(ds_view.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0.0f);
 
@@ -452,7 +459,7 @@ int main()
         ImGui::Render();
         ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 
-        ctx.m_swap_chain->Present(1, 0);
+        ctx.m_swap_chain->Present(vsync, 0);
     }
 
     ImGui_ImplDX11_Shutdown();
@@ -463,6 +470,4 @@ int main()
     UnregisterClass(title.c_str(), instance);
 
     return msg.wParam;
-
-    return 0;
 }
