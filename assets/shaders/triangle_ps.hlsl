@@ -9,7 +9,7 @@ struct PSInput
     float3 bitangent : BITANGENT;
 
     float3 frag_pos : FRAG_POS;
-    float3 light_pos : LIGHT_POS;
+    float3 light_dir : LIGHT_DIR;
 };
 
 cbuffer MaterialBuf : register(b0)
@@ -28,7 +28,7 @@ float4 ps_main(PSInput input) : SV_TARGET
     float3 ambient = ambient_factor * light_color;
 
     float3 norm = normalize(input.normal);
-    float3 light_dir = normalize(input.light_pos - input.frag_pos);
+    float3 light_dir = normalize(-input.light_dir);
     float diff = max(dot(norm, light_dir), 0.0);
     float3 diffuse1 = diff * light_color * diffuse_tex.Sample(my_sampler, input.tex_coord).rgb;
 

@@ -26,12 +26,12 @@ struct VSOutput
     float3 bitangent : BITANGENT;
 
     float3 frag_pos : FRAG_POS;
-    float3 light_pos : LIGHT_POS;
+    float3 light_dir : LIGHT_DIR;
 };
 
 VSOutput vs_main(VSInput input)
 {
-    float3 light_pos = float3(3.0, 3.0, -3.0);
+    float3 light_pos = float3(9.0, 9.0, -9.0);
 
     VSOutput output;
     output.position = mul(float4(input.position, 1.0), mvp);
@@ -41,7 +41,7 @@ VSOutput vs_main(VSInput input)
     output.bitangent = input.bitangent;
 
     output.frag_pos = mul(float4(input.position, 1.0), mv);
-    output.light_pos = mul(float4(light_pos, 1.0), v);
+    output.light_dir = mul(float4(light_pos, 1.0), v);
 
     return output;
 }

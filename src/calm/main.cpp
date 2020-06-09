@@ -15,6 +15,7 @@
 #include <ImGui/imgui_impl_dx11.h>
 
 #include <array>
+#include <chrono>
 #include <vector>
 
 // TODO: Significant error handling
@@ -39,6 +40,34 @@ struct CameraMatrices
     XMMATRIX mv;
     XMMATRIX mvp;
     XMMATRIX n;
+};
+
+enum alignas(16) LightType
+{
+    Directional,
+    Point,
+    Spot,
+    Area,
+};
+
+struct alignas(16) Light
+{
+    LightType type;
+
+    XMFLOAT3 position;
+    XMFLOAT3 direction;
+    XMFLOAT3 up;
+
+    float att_constant;
+    float att_linear;
+    float att_quadratic;
+
+    XMFLOAT3 ambient;
+    XMFLOAT3 diffuse;
+    XMFLOAT3 specular;
+
+    float inner_cone_angle;
+    float outer_cone_angle;
 };
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -294,7 +323,7 @@ int main()
     XMMATRIX view = XMMatrixLookAtLH(
         XMVectorSet(18.0f, 18.0f, -18.0f, 1.0f),
         XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f),
-        XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f)
+        XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)
     );
     XMMATRIX projection = XMMatrixPerspectiveFovLH(
         XMConvertToRadians(45.0f),
@@ -399,11 +428,8 @@ int main()
     ImGui_ImplWin32_Init(window);
     ImGui_ImplDX11_Init(device.Get(), context.Get());
 
-    LARGE_INTEGER current;
-    QueryPerformanceCounter(&current);
-
-    LARGE_INTEGER frequency;
-    QueryPerformanceFrequency(&frequency);
+    auto now = std::chrono::high_resolution_clock::now();
+    std::chrono::time_point<std::chrono::high_resolution_clock> last;
 
     MSG msg = {};
     while (msg.message != WM_QUIT)
@@ -415,13 +441,23 @@ int main()
             continue;
         }
 
+        last = now;
+        now = std::chrono::high_resolution_clock::now();
+
+        float delta = std::chrono::duration_cast<std::chrono::duration<float>>(now - last).count();
+
         ImGui_ImplDX11_NewFrame();
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
         ImGui::ShowDemoWindow();
 
-        model *= XMMatrixRotationY(XMConvertToRadians(1.0f));
+        ImGui::Begin("Frame Time");
+        ImGui::Text("%f ms", delta * 1000.0f);
+        ImGui::Text("%f FPS", 1.0 / delta);
+        ImGui::End();
+
+        model *= XMMatrixRotationY(XMConvertToRadians(100.0f * delta));
 
         cam.v = view;
         cam.mv = model * view;
