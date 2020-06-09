@@ -35,13 +35,13 @@ VSOutput vs_main(VSInput input)
 
     VSOutput output;
     output.position = mul(float4(input.position, 1.0), mvp);
-    output.normal = mul(input.normal, (float3x3)n);
+    output.normal = mul(input.normal, (float3x3) n);
     output.tex_coord = input.tex_coord;
     output.tangent = input.tangent;
     output.bitangent = input.bitangent;
 
-    output.frag_pos = mul(float4(input.position, 1.0), mv);
-    output.light_dir = mul(float4(light_pos, 1.0), v);
+    output.frag_pos = (float3) mul(float4(input.position, 1.0), mv);
+    output.light_dir = (float3) mul(float4(light_pos, 1.0), v);
 
     return output;
 }
