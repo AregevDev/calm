@@ -10,7 +10,7 @@ set (CALM_SOURCE_FILES
 )
 
 add_library(calm ${CALM_SOURCE_FILES})
-target_include_directories(calm PUBLIC include PRIVATE ext/SDL/include)
-target_link_libraries(calm PRIVATE glm::glm SDL3::SDL3-static)
+target_include_directories(calm PUBLIC include PUBLIC ext/SDL/include ext/glad)
+target_link_libraries(calm PRIVATE glm::glm SDL3::SDL3-static glad)
 
 add_subdirectory(playground)
