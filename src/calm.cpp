@@ -36,7 +36,7 @@ void calmPrintVersion() {
                  SDL_VERSIONNUM_MAJOR(sdlVersion),
                  SDL_VERSIONNUM_MINOR(sdlVersion),
                  SDL_VERSIONNUM_MICRO(sdlVersion));
-    
+
     std::println("Using GLM version: {}.{}.{}", GLM_VERSION_MAJOR, GLM_VERSION_MINOR, GLM_VERSION_PATCH);
 }
 

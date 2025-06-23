@@ -8,3 +8,4 @@ Maybe something cool will come out of this...
 - SDL3 - version 3.2.16
 - GLM - version 1.0.1
 - glad - version 0.1.36
+- incbin
