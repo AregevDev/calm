@@ -1,7 +1,8 @@
 #version 460 core
 
 layout (location = 0) in vec3 inPosition;
-layout (location = 1) in flat ivec2 inWindowSize;
+layout (location = 1) in vec3 inNormal;
+layout (location = 2) in flat ivec2 inWindowSize;
 
 layout (location = 0) uniform float time;
 
@@ -15,7 +16,7 @@ const float TWO_PI = 6.28318530717958647692;
 
 void main() {
     vec2 uv = (2.0 * gl_FragCoord.xy - inWindowSize.xy) / inWindowSize.y;
-    vec3 col = 0.5 + 0.5 * cos(time+uv.xyx + vec3(0.0, 2.0, 4.0));
+    vec3 col = 0.5 + 0.5 * cos(time + uv.xyx + vec3(0.0, 2.0, 4.0));
 
     float angle = atan(uv.y, uv.x);
     float dist = length(uv);
@@ -23,8 +24,13 @@ void main() {
     float spiral_val = log(dist) * 3.0 + angle * (5.0 / TWO_PI) - time * 0.2;
     float spiral = fract(spiral_val);
 
-    vec3 bkg = mix(colA, colB, spiral);
-    
-    // vec3 bkg = vec3(0.0);
+    // vec3 bkg = mix(colA, colB, spiral);
+
+    vec3 bkg = mix(
+        mix(vec3(1.0), vec3(0.0), spiral),
+        mix(vec3(0.0), vec3(1.0), spiral),
+        mix(abs(inPosition), abs(inNormal), 0.5)
+    );
+
     fragColor = vec4(bkg, 1.0);
 }
